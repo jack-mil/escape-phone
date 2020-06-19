@@ -1,18 +1,44 @@
-// Pins 2 and 3 are interrupts on Arduino Nano
+// Library and chip select for SD with SPI
+#include <SD.h>
+#define SD_chip_select_pin 10
+
+// Library and pin for audio playback
+#include <TMRpcm.h>
+#define speaker_pin 9
+
+// PIN DEFINITIONS
+// pulse_pin will pulse HIGH count the digit dialed
 #define pulse_pin 2
-#define dial_pin 3
+
+// reciever_pin will go LOW when the reciever is lifted
 #define reciever_pin 4
-#define relay_pin 8
 
-const String KEY = "3526305";
-volatile int pulse_count = 0;
-volatile String code = "";
-byte reciever_lifted = LOW;
-byte last_rec_state = LOW;
+// relay pin is activated by going HIGH
+#define relay_pin 5
 
-// Delay (in Milliseconds) to wait before interrupts are re-triggered
-const unsigned long debounce_delay_dial = 90;
-const unsigned long debounce_delay_pulse = 20;
+// Activate debugging symbols
+#define DEBUG
+
+
+// CONSTANTS
+#define LENGTH 7
+const char KEY[LENGTH+1] = "3526041";
+const unsigned long debounceDelay = 40; //ms
+const unsigned long maxPulseInterval = 350; //ms
+
+// GLOBALS
+TMRpcm player;
+
+char number[LENGTH+1];
+int currentDigit;
+int pulseCount;
+
+typedef enum { ON_HOOK, OFF_HOOK, DIALLING, CONNECTED } stateType;
+stateType state = ON_HOOK;
+
+int previousPinReading = HIGH;
+unsigned long timePinChanged;
+unsigned long now = millis();
 
 void setup() {
 	// Setup I/O pins
@@ -20,85 +46,139 @@ void setup() {
 	// Some digitalReads will be inverted (!) to account for this
 	pinMode(pulse_pin, INPUT_PULLUP);
 	pinMode(reciever_pin, INPUT_PULLUP);
-	pinMode(dial_pin, INPUT_PULLUP);
-	
+	//pinMode(dial_pin, INPUT_PULLUP);
+
 	// The relay controls the output. It is triggered when relay_pin goes HIGH
 	pinMode(relay_pin, OUTPUT);
 	digitalWrite(relay_pin, LOW);
 
-	// Attach ISRs to pulse pin and dial pin
-	// count_pulse() will be called twice per pulse, (rising and falling edge)
-	// Increments count to decode number dialed.
-	attachInterrupt(digitalPinToInterrupt(pulse_pin), count_pulse, CHANGE);
-
-	// save_digit() will be called when the dial is finished rotating.
-	// Appends dialed number to code, and resets pulse_count, ready for the next number
-	attachInterrupt(digitalPinToInterrupt(dial_pin), save_digit, FALLING);
-
 	pinMode(LED_BUILTIN, OUTPUT);
 	digitalWrite(LED_BUILTIN, LOW);
 
-	Serial.begin(9600);
+	#ifdef DEBUG
+		Serial.begin(9600);
+		Serial.println("Connection started");
+	#endif
+
+	if (!SD.begin(SD_chip_select_pin)) {
+		#ifdef DEBUG
+			Serial.println("SD card not detected.");
+		#endif
+		return;
+	} else {
+		#ifdef DEBUG
+			Serial.println("SD card initialized.");
+		#endif
+	}
+
+	player.play("dial.wav");
 }
 
 void loop() {
+
 	// reciever_pin is HIGH when reciever is docked
-	reciever_lifted = !digitalRead(reciever_pin);
+	bool reciever_lifted = !digitalRead(reciever_pin);
 
-	// When the reciever is replaced, reset entered code
-	if (reciever_lifted != last_rec_state) {
-		if(!reciever_lifted) {
-			code = "";
-			pulse_count = 0;
-			digitalWrite(relay_pin, LOW);
+	// If the reciever is lifted, but wasn't before
+	if(reciever_lifted && state == ON_HOOK) {
+		#ifdef DEBUG
+			Serial.println("Reciever lifted");
+		#endif
+
+		// Update state
+		state = OFF_HOOK;
+	}
+	else if(!reciever_lifted && state != ON_HOOK) {
+
+		#ifdef DEBUG
+			Serial.println("Reciever replaced");
+		#endif
+
+		// Update state
+		state = ON_HOOK;
+
+		pulseCount = 0;
+		currentDigit = 0;
+
+		for (int i = 0; i < LENGTH; i++) {
+			number[i] = "\0";
 		}
 	}
-	// Update last reciever state
-	last_rec_state = reciever_lifted;
 
-	// Check correct sequence was inputted, and light up the LED
-	if(code == KEY) {
-		digitalWrite(LED_BUILTIN, HIGH);
-		digitalWrite(relay_pin, HIGH);
-		Serial.println("UNLOCKED");
-		code = "";
-		pulse_count = 0;
-	}
-	else {
-		digitalWrite(LED_BUILTIN, LOW);
-	}
-}
-void count_pulse() {
-	// Interrupts are debounced with timing sequence
-	static unsigned long last_interrupt_time = 0;
-	unsigned long interrupt_time = millis();
-	if (interrupt_time - last_interrupt_time > debounce_delay_pulse)
-	{
-		// Only increment count when the reciever is lifted
-		if (reciever_lifted) {
-			pulse_count++;
-			Serial.print("Pulse");
-			Serial.println(pulse_count);
+	if(state == OFF_HOOK || state == DIALLING) {
+
+		now = millis();
+
+		bool pinReading = digitalRead(pulse_pin);
+
+		if(pinReading != previousPinReading) {
+
+			state = DIALLING;
+
+			if(now - timePinChanged < debounceDelay) {
+				return;
+			}
+
+			if(pinReading == HIGH) {
+				pulseCount++;
+				digitalWrite(LED_BUILTIN, HIGH);
+			}
+			else {
+				digitalWrite(LED_BUILTIN, LOW);
+			}
+
+			timePinChanged = now;
+			previousPinReading = pinReading;
 		}
 	}
-	last_interrupt_time = interrupt_time;
-}
-void save_digit() {
-	static unsigned long last_interrupt_time = 0;
-	unsigned long interrupt_time = millis();
-	if (interrupt_time - last_interrupt_time > debounce_delay_dial);
-	{
-		// only register a number when the reciever is lifted
-		if (reciever_lifted) {
-			// count is twice the number (rising and falling)
-			// mod count by 10 because 10 pulses is "0"
-			if (pulse_count > 0) {
-				Serial.println("Finished rotating");
-				Serial.println(pulse_count / 2 % 10);
-				code += String(pulse_count / 2 % 10);
-				pulse_count = 0;
+
+	if(((now - timePinChanged) >= maxPulseInterval) && pulseCount > 0) {
+
+		if (currentDigit < LENGTH) {
+
+			pulseCount = pulseCount % 10;
+
+			#ifdef DEBUG
+				Serial.print("Digit dialled: ");
+				Serial.println(pulseCount);
+			#endif
+
+			number[currentDigit] = pulseCount | '0';
+
+			currentDigit++;
+
+			number[currentDigit] = 0;
+		}
+
+		if(currentDigit == LENGTH) {
+
+			#ifdef DEBUG
+				Serial.print("Number dialed: ");
+				Serial.println(number);
+			#endif
+
+			if(strcmp(number, KEY) == 0) {
+				// correct number was dialed
+
+				#ifdef DEBUG
+					Serial.println("UNLOCKED");
+				#endif
+
+				digitalWrite(relay_pin, HIGH);
+				delay(100);
+				digitalWrite(relay_pin, LOW);
+
+				while(!digitalRead(reciever_pin)){ delay(1000); }
+			}
+			else {
+				// Incorrect number dialed
+				#ifdef DEBUG
+					Serial.println("INCORRECT NUMBER");
+					Serial.println("Hang up and dial again");
+				#endif
 			}
 		}
+	pulseCount = 0;
 	}
-	last_interrupt_time = interrupt_time;
 }
+/* vim: set noexpandtab ts=4 sw=4: */
