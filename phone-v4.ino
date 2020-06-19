@@ -20,11 +20,16 @@
 #define DEBUG
 
 
-// CONSTANTS
+// <<< CONSTANTS >>>
+
+// Secret Number!!
 #define LENGTH 7
 const char KEY[LENGTH+1] = "3526041";
-const unsigned long debounceDelay = 40; //ms
-const unsigned long maxPulseInterval = 350; //ms
+
+const unsigned long debounceDelay = 40; // pulse debounce delay (ms)
+const unsigned long maxPulseInterval = 350; // time between consecutive digits (ms)
+
+const unsigned long timeoutDelay = 30000; //30 seconds
 
 // GLOBALS
 TMRpcm player;
@@ -33,6 +38,7 @@ char number[LENGTH+1];
 int currentDigit;
 int pulseCount;
 
+// State and initial state
 typedef enum { ON_HOOK, OFF_HOOK, DIALLING, CONNECTED } stateType;
 stateType state = ON_HOOK;
 
@@ -52,8 +58,7 @@ void setup() {
 	pinMode(relay_pin, OUTPUT);
 	digitalWrite(relay_pin, LOW);
 
-	pinMode(LED_BUILTIN, OUTPUT);
-	digitalWrite(LED_BUILTIN, LOW);
+	player.speakerPin = speaker_pin; //Pin with speaker
 
 	#ifdef DEBUG
 		Serial.begin(9600);
@@ -70,8 +75,6 @@ void setup() {
 			Serial.println("SD card initialized.");
 		#endif
 	}
-
-	player.play("dial.wav");
 }
 
 void loop() {
@@ -79,7 +82,7 @@ void loop() {
 	// reciever_pin is HIGH when reciever is docked
 	bool reciever_lifted = !digitalRead(reciever_pin);
 
-	// If the reciever is lifted, but wasn't before
+	// Update reciever state machine
 	if(reciever_lifted && state == ON_HOOK) {
 		#ifdef DEBUG
 			Serial.println("Reciever lifted");
@@ -97,6 +100,7 @@ void loop() {
 		// Update state
 		state = ON_HOOK;
 
+		// Reset dialed number
 		pulseCount = 0;
 		currentDigit = 0;
 
@@ -115,27 +119,38 @@ void loop() {
 
 			state = DIALLING;
 
+			// Debounce pulse counting
 			if(now - timePinChanged < debounceDelay) {
 				return;
 			}
 
-			if(pinReading == HIGH) {
-				pulseCount++;
-				digitalWrite(LED_BUILTIN, HIGH);
-			}
-			else {
-				digitalWrite(LED_BUILTIN, LOW);
-			}
+			// Increase increase pulseCount on state change
+			// PulseCount will represent the digit dialed
+			if(pinReading == HIGH) { pulseCount++; }
 
 			timePinChanged = now;
 			previousPinReading = pinReading;
 		}
+		else if(now - timePinChanged > timeoutDelay){
+			// If reciever has been off hook too long,
+			// play message to prompt reset
+			player.play("dial.wav");
+			timePinChanged = now;
+
+			#ifdef DEBUG
+				Serial.println("timeOutDelay Elapsed");
+			#endif
+		}
 	}
 
+	// When at least one pulse has been counted, and the time between
+	// digits has elapsed, save dialed digit to key
 	if(((now - timePinChanged) >= maxPulseInterval) && pulseCount > 0) {
 
+		// Number is not finished dialing
 		if (currentDigit < LENGTH) {
 
+			// Mod by 10 becuase 10 pulses = "0"
 			pulseCount = pulseCount % 10;
 
 			#ifdef DEBUG
@@ -143,6 +158,7 @@ void loop() {
 				Serial.println(pulseCount);
 			#endif
 
+			// Save dialed number to character arrray (string)
 			number[currentDigit] = pulseCount | '0';
 
 			currentDigit++;
@@ -150,6 +166,7 @@ void loop() {
 			number[currentDigit] = 0;
 		}
 
+		// Enough numbers have been dialed
 		if(currentDigit == LENGTH) {
 
 			#ifdef DEBUG
@@ -158,16 +175,18 @@ void loop() {
 			#endif
 
 			if(strcmp(number, KEY) == 0) {
-				// correct number was dialed
 
+				// correct number was dialed
 				#ifdef DEBUG
 					Serial.println("UNLOCKED");
 				#endif
 
+				// Trigger relay to unlock whatever
 				digitalWrite(relay_pin, HIGH);
 				delay(100);
 				digitalWrite(relay_pin, LOW);
 
+				// Idle until reciever is replaced
 				while(!digitalRead(reciever_pin)){ delay(1000); }
 			}
 			else {
@@ -176,9 +195,15 @@ void loop() {
 					Serial.println("INCORRECT NUMBER");
 					Serial.println("Hang up and dial again");
 				#endif
+				player.play("vacant.wav");
 			}
+
+			// Reset state to initiate timeout if dial not resumed
+			state = OFF_HOOK;
 		}
-	pulseCount = 0;
+
+		// Reset pulse for next digit
+		pulseCount = 0;
 	}
 }
 /* vim: set noexpandtab ts=4 sw=4: */
