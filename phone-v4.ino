@@ -1,10 +1,26 @@
-// Library and chip select for SD with SPI
-#include <SD.h>
+/* This sketch is the code for a puzzle featured in
+ * the Race 2 Escape escape room 4.
+ * https://www.race2escape.net/
+ *
+ * An Arduino Nano (ATMega328) is used to detect pulses on an old rotary phone.
+ * When the correct number is dialed, a relay connected on pin 5 is activated
+ * Audio files are included on an SD card to play a message if the number is
+ *	incorrect. A track is also played when the reciever left off the hook.
+ *
+ * The SimpleSDAudio Library is used for audio playback.
+ * It can be found here:
+ * http://hackerspace-ffm.de/wiki/index.php?title=SimpleSDAudio#Download
+ *
+ * Written by Jackson Miller
+ * https://github.com/jack-mil/escape-phone/
+ */
+
+// Chip select for SD with SPI
 #define SD_chip_select_pin 10
 
 // Library and pin for audio playback
 #include <SimpleSDAudio.h>
-#define speaker_pin 9
+// Mono Speaker must be on Pin 10
 
 // PIN DEFINITIONS
 // pulse_pin will pulse HIGH count the digit dialed
@@ -31,7 +47,7 @@ const unsigned long maxPulseInterval = 350; // time between consecutive digits (
 
 const unsigned long timeoutDelay = 30000; //30 seconds
 
-// GLOBALS
+// <<< GLOBALS >>>
 char number[LENGTH+1];
 int currentDigit;
 int pulseCount;
@@ -73,6 +89,9 @@ void setup() {
 			Serial.println("SD card initialized.");
 		#endif
 	}
+
+	/*SdPlay.setFile("vacant.AFM");*/
+	/*SdPlay.play();*/
 }
 
 void loop() {
