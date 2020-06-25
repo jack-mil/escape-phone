@@ -1,11 +1,11 @@
 /* This sketch is the code for a puzzle featured in
- * the Race 2 Escape escape room 4.
+ * Race 2 Escape escape room 4.
  * https://www.race2escape.net/
  *
  * An Arduino Nano (ATMega328) is used to detect pulses on an old rotary phone.
  * When the correct number is dialed, a relay connected on pin 5 is activated
  * Audio files are included on an SD card to play a message if the number is
- *	incorrect. A track is also played when the reciever left off the hook.
+ *	incorrect. A track is also played when the receiver left off the hook.
  *
  * The SimpleSDAudio Library is used for audio playback.
  * It can be found here:
@@ -23,18 +23,17 @@
 // Mono Speaker must be on Pin 10
 
 // PIN DEFINITIONS
-// pulse_pin will pulse HIGH count the digit dialed
+// pulse_pin will pulse HIGH to count the digit dialed
 #define pulse_pin 2
 
-// reciever_pin will go LOW when the reciever is lifted
-#define reciever_pin 4
+// receiver_pin will go LOW when the receiver is lifted
+#define receiver_pin 4
 
 // relay pin is activated by going HIGH
 #define relay_pin 5
 
 // Activate debugging symbols
 #define DEBUG
-
 
 // <<< CONSTANTS >>>
 
@@ -65,7 +64,7 @@ void setup() {
 	// Using internal pullup resistors means pins will be LOW when switch is closed
 	// Some digitalReads will be inverted (!) to account for this
 	pinMode(pulse_pin, INPUT_PULLUP);
-	pinMode(reciever_pin, INPUT_PULLUP);
+	pinMode(receiver_pin, INPUT_PULLUP);
 	//pinMode(dial_pin, INPUT_PULLUP);
 
 	// The relay controls the output. It is triggered when relay_pin goes HIGH
@@ -96,42 +95,47 @@ void setup() {
 
 void loop() {
 
-	// reciever_pin is HIGH when reciever is docked
-	bool reciever_lifted = !digitalRead(reciever_pin);
+	// receiver_pin is HIGH when receiver is docked
+	bool receiver_lifted = !digitalRead(receiver_pin);
 
-	// Update reciever state machine
-	if(reciever_lifted && state == ON_HOOK) {
+	// Update receiver state machine
+	if(receiver_lifted && state == ON_HOOK) {
 		#ifdef DEBUG
-			Serial.println("Reciever lifted");
+			Serial.println("receiver lifted");
 		#endif
 
 		// Update state
 		state = OFF_HOOK;
 	}
-	else if(!reciever_lifted && state != ON_HOOK) {
+	else if(!receiver_lifted && state != ON_HOOK) {
 
 		#ifdef DEBUG
-			Serial.println("Reciever replaced");
+			Serial.println("receiver replaced");
 		#endif
 
 		// Update state
 		state = ON_HOOK;
 
-		// Reset dialed number
+		// Reset counters
 		pulseCount = 0;
 		currentDigit = 0;
 
+		// Reset number array to NUL characters
 		for (int i = 0; i < LENGTH; i++) {
 			number[i] = "\0";
 		}
 	}
 
+	// When the receiver is off hook, or in the middle of dialing,
+	// watch the pulse_pin and count number dialed
 	if(state == OFF_HOOK || state == DIALLING) {
 
 		now = millis();
 
 		bool pinReading = digitalRead(pulse_pin);
 
+		// When the pin has changed state, debounce, and increase count
+		// on pulse rising edge
 		if(pinReading != previousPinReading) {
 
 			state = DIALLING;
@@ -141,15 +145,14 @@ void loop() {
 				return;
 			}
 
-			// Increase increase pulseCount on state change
-			// PulseCount will represent the digit dialed
+			// PulseCount will represent this digit dialed
 			if(pinReading == HIGH) { pulseCount++; }
 
 			timePinChanged = now;
 			previousPinReading = pinReading;
 		}
 		else if(now - timePinChanged > timeoutDelay){
-			// If reciever has been off hook too long,
+			// If receiver has been off hook too long,
 			// play message to prompt reset
 			if(!SdPlay.setFile("dial.AFM")){
 				Serial.println("File not found");
@@ -167,10 +170,10 @@ void loop() {
 	// digits has elapsed, save dialed digit to key
 	if(((now - timePinChanged) >= maxPulseInterval) && pulseCount > 0) {
 
-		// Number is not finished dialing
+		// If more digits to dial
 		if (currentDigit < LENGTH) {
 
-			// Mod by 10 becuase 10 pulses = "0"
+			// Mod by 10 because 10 pulses = "0"
 			pulseCount = pulseCount % 10;
 
 			#ifdef DEBUG
@@ -179,15 +182,18 @@ void loop() {
 			#endif
 
 			// Save dialed number to character arrray (string)
+			// OR by '0' ASCII x30 to convert int to correct char
 			number[currentDigit] = pulseCount | '0';
 
 			currentDigit++;
 
-			number[currentDigit] = 0;
+			// Fill the next index with placeholder NUL char. 
+			// Required?
+			// number[currentDigit] = 0;
 		}
 
-		// Enough numbers have been dialed
-		if(currentDigit == LENGTH) {
+		// When enough numbers have been dialed
+		else if(currentDigit == LENGTH) {
 
 			#ifdef DEBUG
 				Serial.print("Number dialed: ");
@@ -206,11 +212,12 @@ void loop() {
 				delay(100);
 				digitalWrite(relay_pin, LOW);
 
-				// Idle until reciever is replaced
-				while(!digitalRead(reciever_pin)){ delay(1000); }
+				// Idle until receiver is replaced
+				// while(!digitalRead(receiver_pin)){ delay(1000); }
 			}
 			else {
 				// Incorrect number dialed
+				// Play vacant number
 				#ifdef DEBUG
 					Serial.println("INCORRECT NUMBER");
 					Serial.println("Hang up and dial again");
