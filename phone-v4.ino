@@ -3,7 +3,7 @@
 #define SD_chip_select_pin 10
 
 // Library and pin for audio playback
-#include <TMRpcm.h>
+#include <SimpleSDAudio.h>
 #define speaker_pin 9
 
 // PIN DEFINITIONS
@@ -32,8 +32,6 @@ const unsigned long maxPulseInterval = 350; // time between consecutive digits (
 const unsigned long timeoutDelay = 30000; //30 seconds
 
 // GLOBALS
-TMRpcm player;
-
 char number[LENGTH+1];
 int currentDigit;
 int pulseCount;
@@ -58,14 +56,14 @@ void setup() {
 	pinMode(relay_pin, OUTPUT);
 	digitalWrite(relay_pin, LOW);
 
-	player.speakerPin = speaker_pin; //Pin with speaker
+	SdPlay.setSDCSPin(SD_chip_select_pin);
 
 	#ifdef DEBUG
 		Serial.begin(9600);
 		Serial.println("Connection started");
 	#endif
 
-	if (!SD.begin(SD_chip_select_pin)) {
+	if (!SdPlay.init(SSDA_MODE_FULLRATE | SSDA_MODE_MONO| SSDA_MODE_AUTOWORKER)) {
 		#ifdef DEBUG
 			Serial.println("SD card not detected.");
 		#endif
@@ -134,7 +132,10 @@ void loop() {
 		else if(now - timePinChanged > timeoutDelay){
 			// If reciever has been off hook too long,
 			// play message to prompt reset
-			player.play("dial.wav");
+			if(!SdPlay.setFile("dial.AFM")){
+				Serial.println("File not found");
+			}
+			SdPlay.play();
 			timePinChanged = now;
 
 			#ifdef DEBUG
@@ -195,7 +196,11 @@ void loop() {
 					Serial.println("INCORRECT NUMBER");
 					Serial.println("Hang up and dial again");
 				#endif
-				player.play("vacant.wav");
+
+				if(!SdPlay.setFile("vacant.AFM")) {
+					Serial.println("File not fount");
+				}
+				SdPlay.play();
 			}
 
 			// Reset state to initiate timeout if dial not resumed
