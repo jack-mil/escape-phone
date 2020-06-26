@@ -5,24 +5,48 @@
  * An Arduino Nano (ATMega328) is used to detect pulses on an old rotary phone.
  * When the correct number is dialed, a relay connected on pin 5 is activated
  * Audio files are included on an SD card to play a message if the number is
- *	incorrect. A track is also played when the receiver left off the hook.
+ * incorrect. A track is also played when the receiver left off the hook.
  *
  * The SimpleSDAudio Library is used for audio playback.
  * It can be found here:
  * http://hackerspace-ffm.de/wiki/index.php?title=SimpleSDAudio#Download
  *
  * Written by Jackson Miller
+ * Pinouts and more info in the README
  * https://github.com/jack-mil/escape-phone/
+ *
+ * Copyright (c) 2020 Jackson Miller
+ *
+ * MIT License:
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
+
+
+// INCLUDE Library for audio playback
+// Mono Speaker must be on Pin 10
+#include <SimpleSDAudio.h>
+
+// <<< PIN DEFINITIONS >>>
 
 // Chip select for SD with SPI
 #define SD_chip_select_pin 10
 
-// Library and pin for audio playback
-#include <SimpleSDAudio.h>
-// Mono Speaker must be on Pin 10
-
-// PIN DEFINITIONS
 // pulse_pin will pulse HIGH to count the digit dialed
 #define pulse_pin 2
 
@@ -59,6 +83,7 @@ int previousPinReading = HIGH;
 unsigned long timePinChanged;
 unsigned long now = millis();
 
+// setup() run once when Arduino powers on
 void setup() {
 	// Setup I/O pins
 	// Using internal pullup resistors means pins will be LOW when switch is closed
@@ -93,6 +118,7 @@ void setup() {
 	/*SdPlay.play();*/
 }
 
+// Repeatably called by Arduino
 void loop() {
 
 	// receiver_pin is HIGH when receiver is docked
