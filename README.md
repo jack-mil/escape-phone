@@ -11,6 +11,8 @@ The existing phone speaker is used to playback audio files for emersion.
 An SD card module is used to store the raw audio.
 The SimpleSDAudio library is used to play audio recordings. *See references.*
 
+> The secret code is *`3526041`*
+
 #### References
 > *The SimpleSDAudio library for Arduino by Lutz Lisseck can be downloaded from [his wiki](https://www.hackerspace-ffm.de/wiki/index.php?title=SimpleSDAudio)*
 
