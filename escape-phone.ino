@@ -148,7 +148,7 @@ void loop() {
 
 		// Reset number array to NUL characters
 		for (int i = 0; i < LENGTH; i++) {
-			number[i] = "\0";
+			number[i] = 0;
 		}
 	}
 
@@ -214,12 +214,12 @@ void loop() {
 			currentDigit++;
 
 			// Fill the next index with placeholder NUL char. 
-			// Required?
-			// number[currentDigit] = 0;
+			// Required to match key string ("xxx-xxxx\0")
+			number[currentDigit] = 0;
 		}
 
 		// When enough numbers have been dialed
-		else if(currentDigit == LENGTH) {
+		if(currentDigit == LENGTH) {
 
 			#ifdef DEBUG
 				Serial.print("Number dialed: ");
