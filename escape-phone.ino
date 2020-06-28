@@ -68,7 +68,7 @@ const char KEY[LENGTH+1] = "3526041";
 const unsigned long debounceDelay = 40; // pulse debounce delay (ms)
 const unsigned long maxPulseInterval = 350; // time between consecutive digits (ms)
 
-const unsigned long timeoutDelay = 30000; //30 seconds
+const unsigned long timeoutDelay = 45000; //30 seconds
 
 // <<< GLOBALS >>>
 char number[LENGTH+1];
@@ -113,9 +113,6 @@ void setup() {
 			Serial.println("SD card initialized.");
 		#endif
 	}
-
-	/*SdPlay.setFile("vacant.AFM");*/
-	/*SdPlay.play();*/
 }
 
 // Repeatably called by Arduino
@@ -139,6 +136,8 @@ void loop() {
 			Serial.println("receiver replaced");
 		#endif
 
+		SdPlay.stop();
+
 		// Update state
 		state = ON_HOOK;
 
@@ -155,6 +154,13 @@ void loop() {
 	// When the receiver is off hook, or in the middle of dialing,
 	// watch the pulse_pin and count number dialed
 	if(state == OFF_HOOK || state == DIALLING) {
+
+		// If there is nothing playing,
+		// play a dial tone (loop functionality)
+		if(SdPlay.isStopped()) {
+			SdPlay.setFile("ltone.AFM");
+			SdPlay.play();
+		}
 
 		now = millis();
 
@@ -180,6 +186,7 @@ void loop() {
 		else if(now - timePinChanged > timeoutDelay){
 			// If receiver has been off hook too long,
 			// play message to prompt reset
+			SdPlay.stop();
 			if(!SdPlay.setFile("dial.AFM")){
 				Serial.println("File not found");
 			}
@@ -211,6 +218,11 @@ void loop() {
 			// OR by '0' ASCII x30 to convert int to correct char
 			number[currentDigit] = pulseCount | '0';
 
+			if(currentDigit == 0 && pulseCount == 0) {
+				SdPlay.stop();
+				SdPlay.setFile("rick.AFM");
+				SdPlay.play();
+			}
 			currentDigit++;
 
 			// Fill the next index with placeholder NUL char. 
@@ -233,13 +245,21 @@ void loop() {
 					Serial.println("UNLOCKED");
 				#endif
 
+				SdPlay.stop();
+
+				// Random Rick-Roll
+				if(random(100) < 10) {
+					SdPlay.setFile("rick.AFM");
+					SdPlay.play();
+				}
+				
 				// Trigger relay to unlock whatever
 				digitalWrite(relay_pin, HIGH);
 				delay(100);
 				digitalWrite(relay_pin, LOW);
 
 				// Idle until receiver is replaced
-				// while(!digitalRead(receiver_pin)){ delay(1000); }
+				while(!digitalRead(receiver_pin)){ delay(1000); }
 			}
 			else {
 				// Incorrect number dialed
