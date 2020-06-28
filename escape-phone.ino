@@ -24,10 +24,10 @@
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- 
+
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- 
+
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -39,7 +39,7 @@
 
 
 // INCLUDE Library for audio playback
-// Mono Speaker must be on Pin 10
+// Mono Speaker must be on D9
 #include <SimpleSDAudio.h>
 
 // <<< PIN DEFINITIONS >>>
@@ -48,10 +48,11 @@
 #define SD_chip_select_pin 10
 
 // pulse_pin will pulse HIGH to count the digit dialed
-#define pulse_pin 2
+// Analog pin only for wiring convenience
+#define pulse_pin A5
 
 // receiver_pin will go LOW when the receiver is lifted
-#define receiver_pin 4
+#define receiver_pin A4
 
 // relay pin is activated by going HIGH
 #define relay_pin 5
@@ -68,7 +69,7 @@ const char KEY[LENGTH+1] = "3526041";
 const unsigned long debounceDelay = 40; // pulse debounce delay (ms)
 const unsigned long maxPulseInterval = 350; // time between consecutive digits (ms)
 
-const unsigned long timeoutDelay = 45000; //30 seconds
+const unsigned long timeoutDelay = 45000; //45 seconds
 
 // <<< GLOBALS >>>
 char number[LENGTH+1];
@@ -90,7 +91,6 @@ void setup() {
 	// Some digitalReads will be inverted (!) to account for this
 	pinMode(pulse_pin, INPUT_PULLUP);
 	pinMode(receiver_pin, INPUT_PULLUP);
-	//pinMode(dial_pin, INPUT_PULLUP);
 
 	// The relay controls the output. It is triggered when relay_pin goes HIGH
 	pinMode(relay_pin, OUTPUT);
@@ -155,8 +155,8 @@ void loop() {
 	// watch the pulse_pin and count number dialed
 	if(state == OFF_HOOK || state == DIALLING) {
 
-		// If there is nothing playing,
-		// play a dial tone (loop functionality)
+		// Start or restart the dial tone while the
+		// handset is off the hook
 		if(SdPlay.isStopped()) {
 			SdPlay.setFile("ltone.AFM");
 			SdPlay.play();
