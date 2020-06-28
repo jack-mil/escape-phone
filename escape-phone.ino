@@ -129,6 +129,8 @@ void loop() {
 
 		// Update state
 		state = OFF_HOOK;
+		// Reset these times so timer counts up from this point
+		timePinChanged = now = millis();
 	}
 	else if(!receiver_lifted && state != ON_HOOK) {
 
@@ -248,7 +250,7 @@ void loop() {
 				SdPlay.stop();
 
 				// Random Rick-Roll
-				if(random(100) < 10) {
+				if(random(100) < 5) {
 					SdPlay.setFile("rick.AFM");
 					SdPlay.play();
 				}
@@ -269,6 +271,7 @@ void loop() {
 					Serial.println("Hang up and dial again");
 				#endif
 
+				SdPlay.stop();
 				if(!SdPlay.setFile("vacant.AFM")) {
 					Serial.println("File not fount");
 				}
